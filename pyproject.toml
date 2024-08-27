@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "vcf-info-merger"
+version = "0.1.0"
+description = "Merge info fields across multiple single-sample VCF files"
+authors = ["Devin McCabe <dmccabe@broadinstitute.org>"]
+readme = "README.md"
+keywords = ["genomics", "vcf"]
+
+[tool.poetry.dependencies]
+python = ">=3.12"
+pandas = ">=2.2"
+bgzip = ">=0.5.0"
+pandera = ">=0.20"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.2"
+pyright = "^1.1.377"
+pandas-stubs = "^2.2.2.240807"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+select = [
+    "I",  # isort formatting
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
