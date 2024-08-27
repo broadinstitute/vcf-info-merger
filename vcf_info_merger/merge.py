@@ -21,7 +21,7 @@ def info_merge_vcfs(
     vcf_paths: list[Path | str], out_path: Path | str, chunk_size: int = 1000000000
 ) -> None:
     """
-    Merge INFO fields from multiple VCF files (for the single sample) into a single VCF
+    Merge INFO fields from multiple VCF files (for a single sample) into a single VCF
     file.
 
     :param vcf_paths: a list of paths to VCF files
@@ -163,7 +163,7 @@ def make_chunks(header_lines: list[str], chunk_size: int) -> TypedDataFrame[Chun
     return type_data_frame(pd.DataFrame(chunks), Chunk)
 
 
-def parse_contig(x: str) -> dict[str, str]:
+def parse_contig(x: str) -> dict[str, str | None]:
     """
     Parse a contig from a VCF header line, e.g. "ID=chr1,length=248956422,assembly=38>",
     into a dictionary.
