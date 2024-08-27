@@ -117,15 +117,27 @@ def make_chunks(header_lines: list[str], chunk_size: int) -> TypedDataFrame[Chun
 
     # contig header lines contain names and lengths of chroms
     contig_lines = [x for x in header_lines if x.startswith("##contig")]
-    chrom_lengths_search = [
-        re.search(r"^##contig=<ID=chr([^,]+),length=(\d+)>$", x) for x in contig_lines
-    ]
-    chrom_lengths = pd.DataFrame(
-        [x.groups() for x in chrom_lengths_search if x is not None],
-        columns=["chrom", "length"],
-    ).astype({"chrom": "string", "length": "int64"})
 
-    # remove things like decoy contigs
+    # extract key-value pairs from contig header lines
+    chrom_lengths = pd.Series(contig_lines)
+    chrom_lengths = chrom_lengths.str.extract(r"<(.+)>", expand=False).apply(
+        parse_contig
+    )
+
+    # convert to data frame of (id, length, other irrelevant cols)
+    chrom_lengths = pd.json_normalize(chrom_lengths.tolist())
+    chrom_lengths.columns = chrom_lengths.columns.str.lower()
+
+    chrom_lengths = (
+        chrom_lengths[["id", "length"]]
+        .rename(columns={"id": "chrom"})
+        .astype({"chrom": "string", "length": "int64"})
+    )
+
+    # remove all contigs except chromosomes
+    chrom_lengths["chrom"] = chrom_lengths["chrom"].str.extract(r"^chr(.+)$")
+    chrom_lengths = chrom_lengths.dropna()
+
     valid_chroms = {str(x) for x in range(1, 23)}.union({"X", "Y"})
     chrom_lengths = chrom_lengths.loc[chrom_lengths["chrom"].isin(valid_chroms)]
 
@@ -137,18 +149,32 @@ def make_chunks(header_lines: list[str], chunk_size: int) -> TypedDataFrame[Chun
         start = 1
 
         while start - 1 < r["length"]:
-            end = min(start + chunk_size - 1, r["length"].squeeze())
+            end = min(start + chunk_size - 1, int(r["length"]))
             chunks.append(
                 {
-                    "chrom": f"chrom{r['chrom']}",
+                    "chrom": f"chr{r['chrom']}",
                     "start": start,
                     "end": end,
-                    "split_dir_name": f"chrom{r['chrom']}_{start}-{end}",
+                    "split_dir_name": f"chr{r['chrom']}_{start}-{end}",
                 }
             )
             start = end + 1
 
     return type_data_frame(pd.DataFrame(chunks), Chunk)
+
+
+def parse_contig(x: str) -> dict[str, str]:
+    """
+    Parse a contig from a VCF header line, e.g. "ID=chr1,length=248956422,assembly=38>",
+    into a dictionary.
+
+    :param x: the values of a VCF header contig line
+    :return: the values as a dictionary
+    """
+
+    parts = x.split(",")
+    kv = [x.split("=") for x in parts]
+    return dict(zip([x[0] for x in kv], [x[1] if len(x) == 2 else None for x in kv]))
 
 
 def chunk_vcfs(
@@ -174,13 +200,14 @@ def chunk_vcfs(
     )
 
     for _, r in chunks.iterrows():
-        os.makedirs(r["split_dir"].squeeze())
+        os.makedirs(str(r["split_dir"]))
 
     # cross VCF paths with chunk paths
     vcf_chunks = pd.DataFrame({"path": vcf_paths}).merge(chunks, how="cross")
     vcf_chunks["chunk_path"] = vcf_chunks.apply(
         lambda x: os.path.join(x["split_dir"], os.path.basename(x["path"])), axis=1
-    ).str.rstrip(".gz")
+    )
+    vcf_chunks["chunk_path"] = vcf_chunks["chunk_path"].str.rstrip(".gz")
     vcf_chunks = vcf_chunks.drop(columns=["split_dir_name", "split_dir"])
 
     # write the chunks
@@ -259,7 +286,7 @@ def process_chunks(
             f.write(s.encode())
 
             for _, r in chunks.iterrows():
-                split_dir = os.path.join(tmp_dir, r["split_dir_name"].squeeze())
+                split_dir = os.path.join(tmp_dir, str(r["split_dir_name"]))
 
                 # there should be one file per split per input VCF
                 split_files = glob(os.path.join(split_dir, "*.vcf"), root_dir=tmp_dir)
