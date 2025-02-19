@@ -9,12 +9,13 @@ keywords = ["genomics", "vcf"]
 [tool.poetry.dependencies]
 python = ">=3.12"
 pandas = ">=2.2"
-bgzip = ">=0.5.0"
 pandera = { version = ">=0.20", extras = ["strategies"] }
+bgzip = "^0.5.0"
+typer = "^0.15.1"
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.6.2"
-pyright = "^1.1.377"
+ruff = "^0.9.6"
+pyright = "^1.1.394"
 pandas-stubs = "^2.2.2.240807"
 
 [build-system]

@@ -6,8 +6,8 @@ import subprocess
 import tempfile
 from csv import QUOTE_NONE
 from glob import glob
-from pathlib import Path
-from typing import Any, Hashable, Type
+from os import PathLike
+from typing import Any, Hashable, Sequence, Type
 
 import bgzip
 import pandas as pd
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def info_merge_vcfs(
-    vcf_paths: list[Path | str], out_path: Path | str, chunk_size: int = 1000000000
+    vcf_paths: Sequence[PathLike], out_path: PathLike, chunk_size: int = 1000000000
 ) -> None:
     """
     Merge INFO fields from multiple VCF files (for a single sample) into a single VCF
@@ -43,7 +43,7 @@ def info_merge_vcfs(
     logger.info("Done merging")
 
 
-def get_header_lines(vcf_paths: list[Path | str]) -> list[str]:
+def get_header_lines(vcf_paths: Sequence[PathLike]) -> list[str]:
     """
     Read all of the header lines in a list of VCF files and return their union,
     retaining their order.
@@ -145,11 +145,13 @@ def make_chunks(header_lines: list[str], chunk_size: int) -> TypedDataFrame[Chun
     chunks = []
 
     for _, r in chrom_lengths.iterrows():
-        # `bcftools view` expects 1-index regions in TSVs used for splitting
+        # `bcftools view` expects 1-indexed regions in TSVs used for splitting
         start = 1
+        # noinspection PyTypeChecker
+        length = int(r["length"])
 
-        while start - 1 < r["length"]:
-            end = min(start + chunk_size - 1, int(r["length"]))
+        while start - 1 < length:
+            end = min(start + chunk_size - 1, length)
             chunks.append(
                 {
                     "chrom": f"chr{r['chrom']}",
@@ -178,7 +180,7 @@ def parse_contig(x: str) -> dict[str, str | None]:
 
 
 def chunk_vcfs(
-    vcf_paths: list[Path | str], tmp_dir: str, chunks: TypedDataFrame[Chunk]
+    vcf_paths: Sequence[PathLike], tmp_dir: str, chunks: TypedDataFrame[Chunk]
 ) -> None:
     """
     Index each VCF file and concurently split them up into chunks using `bcftools`.
@@ -205,7 +207,7 @@ def chunk_vcfs(
     # cross VCF paths with chunk paths
     vcf_chunks = pd.DataFrame({"path": vcf_paths}).merge(chunks, how="cross")
     vcf_chunks["chunk_path"] = vcf_chunks.apply(
-        lambda x: os.path.join(x["split_dir"], os.path.basename(x["path"])), axis=1
+        lambda x: str(os.path.join(x["split_dir"], os.path.basename(x["path"]))), axis=1
     )
     vcf_chunks["chunk_path"] = vcf_chunks["chunk_path"].str.rstrip(".gz")
     vcf_chunks = vcf_chunks.drop(columns=["split_dir_name", "split_dir"])
@@ -217,7 +219,7 @@ def chunk_vcfs(
             executor.submit(write_vcf_chunk, r)
 
 
-def index_vcf(path: Path | str) -> None:
+def index_vcf(path: PathLike) -> None:
     """
     Create a tabix index for a VCF file using `bcftools`.
 
@@ -263,7 +265,7 @@ def write_vcf_chunk(r: dict[Hashable, Any]) -> None:
 
 def process_chunks(
     header_lines: list[str],
-    out_path: Path | str,
+    out_path: PathLike,
     tmp_dir: str,
     chunks: TypedDataFrame[Chunk],
     n_vcfs: int,
