@@ -19,6 +19,7 @@ Note: This package has not been tested widely on different input VCFs, lacks uni
 
 ```python
 import logging
+from pathlib import Path
 
 from vcf_info_merger import info_merge_vcfs
 
@@ -28,11 +29,11 @@ logging.getLogger().setLevel(logging.INFO)
 info_merge_vcfs(
     # VCF files must be bgzipped
     vcf_paths=[
-        "./path/to/vcf1.vcf.gz",
-        "./path/to/vcf1.vcf.gz",
+        Path("./path/to/vcf1.vcf.gz"),
+        Path("./path/to/vcf1.vcf.gz"),
         # etc.
     ],
-    out_path="./merged.vcf.gz",
+    out_path=Path("./merged.vcf.gz"),
     chunk_size = 1000000000,
 )
 ```
